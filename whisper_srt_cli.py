@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import shlex
+import sys
 from pathlib import Path
 
 from whisper_srt_backend import WhisperSRTProcessor, iter_audio_files, output_path_for
@@ -30,13 +30,14 @@ def interactive_paths() -> list[str]:
         return []
     if ";" in raw:
         return [part.strip().strip('"') for part in raw.split(";") if part.strip()]
-    try:
-        return shlex.split(raw, posix=False)
-    except ValueError:
-        return [raw.strip('"')]
+    # Pasted Windows paths can contain spaces without being quoted.
+    return [raw.strip('"')]
 
 
 def main() -> int:
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = build_parser()
     args = parser.parse_args()
     raw_paths = args.paths or interactive_paths()
@@ -83,6 +84,9 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\n鐢ㄦ埛涓柇銆?)
         return 130
+    except Exception as exc:
+        print(f"\n鍚姩澶辫触锛歿exc}")
+        return 1
     finally:
         if processor is not None:
             processor.close()
