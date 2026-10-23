@@ -36,18 +36,18 @@ class LauncherTests(unittest.TestCase):
     def test_help_from_other_working_directory(self):
         result = self.invoke(ROOT, "run_whisper_srt.bat", "--help")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("灏嗘湰鏈洪煶棰?瑙嗛", result.stdout)
+        self.assertIn("将本机音频/视频", result.stdout)
         self.assertNotIn("\ufffd", result.stdout)
 
     def test_interactive_exit(self):
         result = self.invoke(ROOT, "run_whisper_srt.bat", stdin="\n")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("璺緞锛?, result.stdout)
-        self.assertIn("鏈寚瀹氳矾寰?, result.stdout)
+        self.assertIn("路径：", result.stdout)
+        self.assertIn("未指定路径", result.stdout)
 
     def test_installer_reuses_system_environment(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "宸ュ叿 test & (璺緞)!"
+            root = Path(directory) / "工具 test & (路径)!"
             root.mkdir()
             for path in ROOT.iterdir():
                 if path.suffix in {".bat", ".py"}:
@@ -58,7 +58,7 @@ class LauncherTests(unittest.TestCase):
             self.assertFalse((root / ".venv").exists())
             help_result = self.invoke(root, "run_whisper_srt.bat", "--help")
             self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
-            self.assertIn("灏嗘湰鏈洪煶棰?瑙嗛", help_result.stdout)
+            self.assertIn("将本机音频/视频", help_result.stdout)
 
     def test_missing_python_reports_failure(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -75,4 +75,3 @@ class LauncherTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
