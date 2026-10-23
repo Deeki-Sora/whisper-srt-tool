@@ -1,47 +1,57 @@
 @echo off
-setlocal EnableExtensions
-cd /d "%~dp0"
+setlocal EnableExtensions DisableDelayedExpansion
 chcp 65001 >nul
-title WhisperX SRT 瀹夎绋嬪簭
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+title WhisperSRT Setup
+pushd "%~dp0"
+if errorlevel 1 exit /b 1
 
-where py >nul 2>nul
-if errorlevel 1 (
-    echo 鏈壘鍒?Python銆傝瀹夎 Python 3.10 鎴?3.11锛屽苟鍕鹃€?Add Python to PATH銆?    pause
-    exit /b 1
-)
+call "%~dp0select_python.bat"
+if errorlevel 1 goto :install
+echo [WhisperSRT] Existing environment is ready. No installation needed.
+"%WHISPERSRT_PYTHON%" %WHISPERSRT_PYTHON_ARGS% "%~dp0check_environment.py"
+set "WHISPERSRT_EXIT=%errorlevel%"
+goto :finish
 
-python check_environment.py --quiet >nul 2>&1
-if not errorlevel 1 (
-    echo 宸叉娴嬪埌鏈満 Python 鐜鍏峰 WhisperSRT 鎵€闇€渚濊禆锛岃烦杩囪櫄鎷熺幆澧冨畨瑁呫€?    python check_environment.py
-    echo.
-    echo 鍙互鐩存帴杩愯 run_whisper_srt.bat銆?    pause
-    exit /b 0
-)
-
-if not exist ".venv\Scripts\python.exe" (
-    echo 姝ｅ湪鍒涘缓鏈湴铏氭嫙鐜...
-    py -3.11 -m venv .venv
-    if errorlevel 1 py -m venv .venv
-)
-set "PYTHON_EXE=.venv\Scripts\python.exe"
-%PYTHON_EXE% -m pip install --upgrade pip
-
-echo 姝ｅ湪瀹夎 WhisperX銆乫aster-whisper 鍜?CUDA 杩愯搴?..
-%PYTHON_EXE% -m pip install whisperx faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cuda-runtime-cu12
+:install
+call "%~dp0select_python.bat" --python-only
+if errorlevel 1 goto :no_python
+if exist "%~dp0.venv\Scripts\python.exe" goto :venv_ready
+echo [WhisperSRT] Creating a local virtual environment...
+"%WHISPERSRT_PYTHON%" %WHISPERSRT_PYTHON_ARGS% -m venv "%~dp0.venv"
 if errorlevel 1 goto :failed
 
-echo 姝ｅ湪瀹夎 CUDA 鐗?PyTorch锛堢害 3.5 GB锛岃鑰愬績绛夊緟锛?..
-%PYTHON_EXE% -m pip install --upgrade --force-reinstall torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu128
+:venv_ready
+set "WHISPERSRT_PYTHON=%~dp0.venv\Scripts\python.exe"
+set "WHISPERSRT_PYTHON_ARGS="
+"%WHISPERSRT_PYTHON%" -m pip install --upgrade pip
 if errorlevel 1 goto :failed
 
-%PYTHON_EXE% check_environment.py
+echo [WhisperSRT] Installing CUDA PyTorch. The download is large.
+"%WHISPERSRT_PYTHON%" -m pip install torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu128
 if errorlevel 1 goto :failed
-echo.
-echo 瀹夎瀹屾垚銆傚弻鍑?run_whisper_srt.bat锛屾垨灏嗘枃浠?鐩綍鎷栧埌璇?bat 涓婅繍琛屻€?pause
-exit /b 0
+
+echo [WhisperSRT] Installing transcription dependencies...
+"%WHISPERSRT_PYTHON%" -m pip install whisperx==3.8.6 "transformers<5" faster-whisper==1.2.1 nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cuda-runtime-cu12
+if errorlevel 1 goto :failed
+"%WHISPERSRT_PYTHON%" "%~dp0check_environment.py"
+if errorlevel 1 goto :failed
+echo [WhisperSRT] Setup complete. Run run_whisper_srt.bat.
+set "WHISPERSRT_EXIT=0"
+goto :finish
+
+:no_python
+echo [WhisperSRT] Python 3.10-3.12 is required. Install Python 3.11 and add it to PATH.
+set "WHISPERSRT_EXIT=1"
+goto :finish
 
 :failed
-echo.
-echo 瀹夎澶辫触銆傝妫€鏌ョ綉缁滃悗閲嶆柊杩愯鏈剼鏈€?pause
-exit /b 1
+echo [WhisperSRT] Setup failed. Check the error above and retry.
+set "WHISPERSRT_EXIT=1"
+
+:finish
+popd
+if not defined WHISPERSRT_NO_PAUSE pause
+exit /b %WHISPERSRT_EXIT%
 
