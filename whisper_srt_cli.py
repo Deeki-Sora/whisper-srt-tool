@@ -11,21 +11,21 @@ from whisper_srt_backend import WhisperSRTProcessor, iter_audio_files, output_pa
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="灏嗘湰鏈洪煶棰?瑙嗛杞负缇庡紡鑻辫閫愯瘝鏃堕棿鎴?SRT锛屽瓧骞曞啓鍏ユ簮鏂囦欢鍚岀洰褰曘€?
+        description="将本机音频/视频转为美式英语逐词时间戳 SRT，字幕写入源文件同目录。"
     )
-    parser.add_argument("paths", nargs="*", help="鏂囦欢鎴栫洰褰曪紱璺緞鍚┖鏍兼椂璇峰姞寮曞彿")
-    parser.add_argument("-r", "--recursive", action="store_true", help="鐩綍妯″紡涓嬮€掑綊鎵弿瀛愮洰褰?)
-    parser.add_argument("--overwrite", action="store_true", help="瑕嗙洊宸叉湁鍚屽悕瀛楀箷")
-    parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto", help="ASR 璁惧锛岄粯璁よ嚜鍔ㄩ€夋嫨")
-    parser.add_argument("--align-device", choices=("auto", "cuda", "cpu"), default="cpu", help="寮哄埗瀵归綈璁惧锛岄粯璁?CPU 浠ヨ妭鐪佹樉瀛?)
-    parser.add_argument("--batch-size", type=int, default=4, help="GPU 鎵瑰ぇ灏忥紝鏄惧瓨涓嶈冻鏃惰皟灏?)
-    parser.add_argument("--model", default="large-v3", help="Whisper 妯″瀷鍚嶏紝榛樿 large-v3")
+    parser.add_argument("paths", nargs="*", help="文件或目录；路径含空格时请加引号")
+    parser.add_argument("-r", "--recursive", action="store_true", help="目录模式下递归扫描子目录")
+    parser.add_argument("--overwrite", action="store_true", help="覆盖已有同名字幕")
+    parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto", help="ASR 设备，默认自动选择")
+    parser.add_argument("--align-device", choices=("auto", "cuda", "cpu"), default="cpu", help="强制对齐设备，默认 CPU 以节省显存")
+    parser.add_argument("--batch-size", type=int, default=4, help="GPU 批大小，显存不足时调小")
+    parser.add_argument("--model", default="large-v3", help="Whisper 模型名，默认 large-v3")
     return parser
 
 
 def interactive_paths() -> list[str]:
-    print("璇疯緭鍏ヨ杞崲鐨勬枃浠舵垨鐩綍銆傚彲浠ヨ緭鍏ュ涓矾寰勶紝鐢ㄥ垎鍙峰垎闅旓紱鐩存帴鍥炶溅閫€鍑恒€?)
-    raw = input("璺緞锛?).strip()
+    print("请输入要转换的文件或目录。可以输入多个路径，用分号分隔；直接回车退出。")
+    raw = input("路径：").strip()
     if not raw:
         return []
     if ";" in raw:
@@ -42,7 +42,7 @@ def main() -> int:
     args = parser.parse_args()
     raw_paths = args.paths or interactive_paths()
     if not raw_paths:
-        print("鏈寚瀹氳矾寰勶紝绋嬪簭缁撴潫銆?)
+        print("未指定路径，程序结束。")
         return 0
 
     files: list[Path] = []
@@ -50,20 +50,20 @@ def main() -> int:
         try:
             files.extend(iter_audio_files(Path(raw.strip('"')), recursive=args.recursive))
         except (FileNotFoundError, ValueError) as exc:
-            print(f"璺宠繃锛歿exc}")
+            print(f"跳过：{exc}")
     files = list(dict.fromkeys(files))
     if not files:
-        print("娌℃湁鎵惧埌鍙鐞嗙殑闊抽/瑙嗛鏂囦欢銆?)
+        print("没有找到可处理的音频/视频文件。")
         return 1
 
     if not args.overwrite:
         existing = [p for p in files if output_path_for(p).exists()]
         if existing:
-            answer = input(f"鍙戠幇 {len(existing)} 涓凡鏈夊瓧骞曪紝鏄惁瑕嗙洊锛?y/N)锛?).strip().lower()
+            answer = input(f"发现 {len(existing)} 个已有字幕，是否覆盖？(y/N)：").strip().lower()
             if answer in {"y", "yes"}:
                 args.overwrite = True
 
-    print(f"灏嗗鐞?{len(files)} 涓枃浠讹紱璇█鍥哄畾涓虹編寮忚嫳璇紙en锛夈€?)
+    print(f"将处理 {len(files)} 个文件；语言固定为美式英语（en）。")
     processor = None
     try:
         processor = WhisperSRTProcessor(
@@ -78,14 +78,14 @@ def main() -> int:
                 processor.convert(source, overwrite=args.overwrite)
             except Exception as exc:
                 failed += 1
-                print(f"澶辫触锛歿source}\n鍘熷洜锛歿exc}")
-        print(f"\n澶勭悊缁撴潫锛氭垚鍔?{len(files) - failed} 涓紝澶辫触 {failed} 涓€?)
+                print(f"失败：{source}\n原因：{exc}")
+        print(f"\n处理结束：成功 {len(files) - failed} 个，失败 {failed} 个。")
         return 1 if failed else 0
     except KeyboardInterrupt:
-        print("\n鐢ㄦ埛涓柇銆?)
+        print("\n用户中断。")
         return 130
     except Exception as exc:
-        print(f"\n鍚姩澶辫触锛歿exc}")
+        print(f"\n启动失败：{exc}")
         return 1
     finally:
         if processor is not None:
@@ -94,4 +94,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
