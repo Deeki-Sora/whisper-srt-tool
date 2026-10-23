@@ -1,0 +1,6 @@
+* text=auto
+# Preserve the tested CRLF bytes in GitHub ZIP downloads as well as checkouts.
+*.bat -text whitespace=cr-at-eol
+*.py text eol=lf
+*.md text eol=lf
+
