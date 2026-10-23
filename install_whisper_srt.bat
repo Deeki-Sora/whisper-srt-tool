@@ -54,4 +54,3 @@ set "WHISPERSRT_EXIT=1"
 popd
 if not defined WHISPERSRT_NO_PAUSE pause
 exit /b %WHISPERSRT_EXIT%
-
