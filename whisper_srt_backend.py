@@ -55,10 +55,10 @@ def choose_device(requested: str) -> str:
     if requested == "auto":
         if torch.cuda.is_available() and cuda_backend:
             return "cuda"
-        print("鏈娴嬪埌鍙敤鐨?ctranslate2 CUDA 鍚庣锛屽皢浣跨敤 CPU銆?, flush=True)
+        print("未检测到可用的 ctranslate2 CUDA 后端，将使用 CPU。", flush=True)
         return "cpu"
     if requested == "cuda" and (not torch.cuda.is_available() or not cuda_backend):
-        raise RuntimeError("宸叉寚瀹?CUDA锛屼絾褰撳墠 Python 鐜妫€娴嬩笉鍒板彲鐢?CUDA/ctranslate2 鍚庣銆傝鍏堣繍琛?install_whisper_srt.bat銆?)
+        raise RuntimeError("已指定 CUDA，但当前 Python 环境检测不到可用 CUDA/ctranslate2 后端。请先运行 install_whisper_srt.bat。")
     return requested
 
 
@@ -69,10 +69,10 @@ def output_path_for(source: Path) -> Path:
 def iter_audio_files(path: Path, recursive: bool = False) -> list[Path]:
     if path.is_file():
         if path.suffix.lower() not in AUDIO_EXTENSIONS:
-            raise ValueError(f"涓嶆敮鎸佺殑闊抽/瑙嗛鏍煎紡锛歿path.suffix}")
+            raise ValueError(f"不支持的音频/视频格式：{path.suffix}")
         return [path]
     if not path.is_dir():
-        raise FileNotFoundError(f"鎵句笉鍒拌矾寰勶細{path}")
+        raise FileNotFoundError(f"找不到路径：{path}")
     iterator: Iterable[Path] = path.rglob("*") if recursive else path.iterdir()
     return sorted(p for p in iterator if p.is_file() and p.suffix.lower() in AUDIO_EXTENSIONS)
 
@@ -101,7 +101,7 @@ class WhisperSRTProcessor:
         )
         self.batch_size = batch_size
         compute_type = "float16" if self.device == "cuda" else "int8"
-        print(f"鍔犺浇 ASR 妯″瀷 {model_name}锛堣澶囷細{self.device}锛岃绠楃被鍨嬶細{compute_type}锛?..", flush=True)
+        print(f"加载 ASR 模型 {model_name}（设备：{self.device}，计算类型：{compute_type}）...", flush=True)
         self.asr_model = whisperx.load_model(
             model_name,
             device=self.device,
@@ -119,7 +119,7 @@ class WhisperSRTProcessor:
 
     def _load_alignment_model(self) -> None:
         if self._align_model is None:
-            print(f"鍔犺浇鑻辫寮哄埗瀵归綈妯″瀷锛堣澶囷細{self.align_device}锛?..", flush=True)
+            print(f"加载英语强制对齐模型（设备：{self.align_device}）...", flush=True)
             self._align_model, self._align_metadata = whisperx.load_align_model(
                 language_code="en", device=self.align_device
             )
@@ -128,9 +128,9 @@ class WhisperSRTProcessor:
         source = source.resolve()
         output = (output or output_path_for(source)).resolve()
         if output.exists() and not overwrite:
-            raise FileExistsError(f"杈撳嚭鏂囦欢宸插瓨鍦細{output}")
+            raise FileExistsError(f"输出文件已存在：{output}")
 
-        print(f"\n杞綍锛歿source.name}", flush=True)
+        print(f"\n转录：{source.name}", flush=True)
         audio = whisperx.load_audio(str(source))
         result = self.asr_model.transcribe(audio, batch_size=self.batch_size, language="en")
         self._load_alignment_model()
@@ -157,7 +157,7 @@ class WhisperSRTProcessor:
                     index += 1
 
         words = index - 1
-        print(f"瀹屾垚锛歿output.name}锛坽words} 涓崟璇嶏級", flush=True)
+        print(f"完成：{output.name}（{words} 个单词）", flush=True)
         return ConversionResult(source, output, words, result.get("language", "en"), first_time, last_time)
 
     def close(self) -> None:
@@ -167,4 +167,3 @@ class WhisperSRTProcessor:
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-
