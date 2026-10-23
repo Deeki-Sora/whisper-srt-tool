@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import importlib.util
 import json
+import shutil
 import sys
 
 
@@ -12,7 +14,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--require-cuda", action="store_true")
+    parser.add_argument("--python-only", action="store_true", help="Only check the Python version for venv creation")
     args = parser.parse_args()
+    if args.python_only:
+        return 0 if (3, 10) <= sys.version_info[:2] <= (3, 12) else 1
 
     modules = {
         "whisperx": importlib.util.find_spec("whisperx") is not None,
@@ -20,6 +25,16 @@ def main() -> int:
         "torch": importlib.util.find_spec("torch") is not None,
         "ctranslate2": importlib.util.find_spec("ctranslate2") is not None,
     }
+    import_errors = {}
+    for name, found in modules.items():
+        if not found:
+            continue
+        try:
+            importlib.import_module(name)
+        except Exception as exc:
+            modules[name] = False
+            import_errors[name] = str(exc)
+    ffmpeg = shutil.which("ffmpeg")
     cuda = False
     cuda_name = ""
     torch_version = ""
@@ -45,6 +60,8 @@ def main() -> int:
         "python": sys.executable,
         "python_version": sys.version.split()[0],
         "modules": modules,
+        "import_errors": import_errors,
+        "ffmpeg": ffmpeg,
         "all_required_modules": all(modules.values()),
         "cuda_available": cuda,
         "cuda_device": cuda_name,
@@ -56,7 +73,7 @@ def main() -> int:
 
     if not result["all_required_modules"]:
         return 1
-    if args.require_cuda and not cuda:
+    if args.require_cuda and not (cuda and cuda_backend):
         return 2
     return 0
 
