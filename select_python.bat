@@ -22,4 +22,3 @@ if errorlevel 1 exit /b 0
 set "WHISPERSRT_PYTHON=%~1"
 set "WHISPERSRT_PYTHON_ARGS=%~2"
 exit /b 0
-
